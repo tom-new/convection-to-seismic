@@ -17,13 +17,14 @@ import numpy as np
 import pyvista as pv
 import gdrift
 
-RMAX       = 2.208   # non-dim outer radius (surface)
-D_KM       = 2891.0  # mantle depth in km
-TS         = 300.0   # surface temperature (K)
-DELTA_T    = 3700.0  # temperature drop across mantle (K)
+RMAX = 2.208  # non-dim outer radius (surface)
+D_KM = 2891.0  # mantle depth in km
+TS = 300.0  # surface temperature (K)
+DELTA_T = 3700.0  # temperature drop across mantle (K)
 TEMP_FIELD = "FullTemperature_CG"
-Q_PROFILE  = "Q3"
-N_BINS     = 200     # probe depths for radial temperature average
+DTEMP_FIELD = "Temperature_Deviation_CG"
+Q_PROFILE = "Q6"
+N_BINS = 200  # probe depths for radial temperature average
 
 
 def build_average_temperature_profile(depth_m, t_kelvin, n_bins=N_BINS):
@@ -86,8 +87,8 @@ def main():
     print(f"Reading {input_pvtu} ...")
     mesh = pv.read(input_pvtu)
 
-    coords   = np.asarray(mesh.points)
-    depth_m  = (RMAX - np.linalg.norm(coords, axis=1)) * D_KM * 1e3
+    coords = np.asarray(mesh.points)
+    depth_m = (RMAX - np.linalg.norm(coords, axis=1)) * D_KM * 1e3
     t_kelvin = TS + DELTA_T * np.asarray(mesh.point_data[TEMP_FIELD])
 
     print("Building radial temperature profile ...")
@@ -107,17 +108,17 @@ def main():
         },
     )
 
-    print("Applying Cammarano Q3 anelastic correction ...")
+    print(f"Applying Cammarano {Q_PROFILE} anelastic correction ...")
     anelastic = gdrift.CammaranoAnelasticityModel.from_q_profile(Q_PROFILE)
     corrected = gdrift.apply_anelastic_correction(regular_slb21, anelastic)
 
     depth_min = slb21.get_depths().min()
     depth_max = slb21.get_depths().max()
-    temp_min  = slb21.get_temperatures().min()
-    temp_max  = slb21.get_temperatures().max()
+    temp_min = slb21.get_temperatures().min()
+    temp_max = slb21.get_temperatures().max()
 
-    depth_c = np.clip(depth_m,  depth_min, depth_max)
-    temp_c  = np.clip(t_kelvin, temp_min,  temp_max)
+    depth_c = np.clip(depth_m, depth_min, depth_max)
+    temp_c = np.clip(t_kelvin, temp_min, temp_max)
 
     print("Computing Vs and Vp ...")
     vs = corrected.temperature_to_vs(temp_c, depth_c)
@@ -125,6 +126,9 @@ def main():
 
     out_mesh = pv.UnstructuredGrid(mesh.cells, mesh.celltypes, mesh.points)
     out_mesh.point_data["Temperature_K"] = t_kelvin
+    out_mesh.point_data["TemperatureDeviation_K"] = (
+        np.asarray(mesh.point_data[DTEMP_FIELD]) * DELTA_T
+    )
     out_mesh.point_data["Vs"] = vs
     out_mesh.point_data["Vp"] = vp
 

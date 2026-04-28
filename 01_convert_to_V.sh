@@ -15,14 +15,14 @@
 #   INPUT_PVTU  - path to the output_*.pvtu file from your simulation
 #   OUTPUT_VTU  - where to write the converted result (a single .vtu file)
 
-INPUT_PVTU=/scratch/xd2/sg8812/testing/output/output_0.pvtu
-OUTPUT_VTU=/scratch/xd2/USERNAME/converted.vtu
+INPUT_PVTU=/Volumes/Grey/firedrake_simulations/HT/Z22/0Ma/output_0.pvtu
+OUTPUT_VTU=/Volumes/Grey/firedrake_simulations/HT/Z22/0Ma/converted.vtu
 
-set -euo pipefail
+# set -euo pipefail
 
-module use /g/data/fp50/modules
-module load firedrake/main-20260114
-export PYTHONPATH=/scratch/xd2/sg8812/local/lib/python3.12/site-packages:${PYTHONPATH:-}
+# module use /g/data/fp50/modules
+# module load firedrake/main-20260114
+# export PYTHONPATH=/scratch/xd2/sg8812/local/lib/python3.12/site-packages:${PYTHONPATH:-}
 
 SCRIPTS_DIR="$(dirname "$(realpath "$0")")"
 

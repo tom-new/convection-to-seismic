@@ -14,14 +14,14 @@
 # INPUT_VTU  - output of step 1 (converted.vtu)
 # OUTPUT_VTU - where to write the LLNL-filtered result
 
-INPUT_VTU=/scratch/xd2/USERNAME/converted.vtu
-OUTPUT_VTU=/scratch/xd2/USERNAME/converted_tofi_filtered.vtu
+INPUT_VTU=/Volumes/Grey/firedrake_simulations/HT/Z22/0Ma/converted.vtu
+OUTPUT_VTU=/Volumes/Grey/firedrake_simulations/HT/Z22/0Ma/converted_tofi_filtered.vtu
 
-set -euo pipefail
+# set -euo pipefail
 
-module use /g/data/fp50/modules
-module load firedrake/main-20260114
-export PYTHONPATH=/scratch/xd2/sg8812/local/lib/python3.12/site-packages:${PYTHONPATH:-}
+# module use /g/data/fp50/modules
+# module load firedrake/main-20260114
+# export PYTHONPATH=/scratch/xd2/sg8812/local/lib/python3.12/site-packages:${PYTHONPATH:-}
 
 SCRIPTS_DIR="$(dirname "$(realpath "$0")")"
 

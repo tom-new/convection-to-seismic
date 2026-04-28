@@ -15,13 +15,13 @@
 #
 # Set WORK_DIR to the directory that holds your converted*.vtu files.
 
-WORK_DIR=/scratch/xd2/USERNAME
+WORK_DIR=/Volumes/Grey/firedrake_simulations/HT/Z22/0Ma
 
-set -euo pipefail
+# set -euo pipefail
 
-module use /g/data/fp50/modules
-module load firedrake/main-20260114
-export PYTHONPATH=/scratch/xd2/sg8812/local/lib/python3.12/site-packages:/scratch/xd2/sg8812/g-interp:${PYTHONPATH:-}
+# module use /g/data/fp50/modules
+# module load firedrake/main-20260114
+# export PYTHONPATH=/scratch/xd2/sg8812/local/lib/python3.12/site-packages:/scratch/xd2/sg8812/g-interp:${PYTHONPATH:-}
 
 interp() {
     local vtu="$1"
