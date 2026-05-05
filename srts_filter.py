@@ -32,16 +32,22 @@ import numpy as np
 import pyvista as pv
 from scipy.spatial import cKDTree
 
-from srts import S12RTS, S20RTS, S40RTS, DepthParameterization, SphericalHarmonicExpansion
+from srts import (
+    S12RTS,
+    S20RTS,
+    S40RTS,
+    DepthParameterization,
+    SphericalHarmonicExpansion,
+)
 
-RMAX       = 2.208    # non-dim outer radius
-D_KM       = 2891.0   # mantle depth in km
-LMAX       = 40
-N_LAT      = 181
-N_LON      = 360
-K_IDW      = 4
-IDW_P      = 2
-DEPTH_TOL  = 1.0      # km — tolerance for grouping mesh points into depth layers
+RMAX = 2.208  # non-dim outer radius
+D_KM = 2891.0  # mantle depth in km
+LMAX = 40
+N_LAT = 181
+N_LON = 360
+K_IDW = 4
+IDW_P = 2
+DEPTH_TOL = 1.0  # km — tolerance for grouping mesh points into depth layers
 
 
 def _tick(label):
@@ -61,13 +67,16 @@ def regular_grid(nlat, nlon):
 
 
 def ll_to_unit_xyz(lon_deg, lat_deg):
-    phi   = np.radians(lon_deg)
+    phi = np.radians(lon_deg)
     theta = np.radians(lat_deg)
-    return np.stack([
-        np.cos(theta) * np.cos(phi),
-        np.cos(theta) * np.sin(phi),
-        np.sin(theta),
-    ], axis=1)
+    return np.stack(
+        [
+            np.cos(theta) * np.cos(phi),
+            np.cos(theta) * np.sin(phi),
+            np.sin(theta),
+        ],
+        axis=1,
+    )
 
 
 def build_idw_weights(src_lon, src_lat, tgt_lon, tgt_lat):
@@ -80,8 +89,8 @@ def build_idw_weights(src_lon, src_lat, tgt_lon, tgt_lat):
 
 def detect_depth_layers(depth_km, tol=DEPTH_TOL):
     rounded = np.round(depth_km / tol) * tol
-    unique  = np.sort(np.unique(rounded))
-    masks   = [rounded == d for d in unique]
+    unique = np.sort(np.unique(rounded))
+    masks = [rounded == d for d in unique]
     return unique, masks
 
 
@@ -90,8 +99,8 @@ def depth_boundaries(unique_depths):
         d = unique_depths[0]
         return np.array([max(0.0, d - 1.0), min(2890.0, d + 1.0)])
     mids = 0.5 * (unique_depths[:-1] + unique_depths[1:])
-    d0   = max(0.0,    unique_depths[0]  - (mids[0]           - unique_depths[0]))
-    d1   = min(2890.0, unique_depths[-1] + (unique_depths[-1] - mids[-1]))
+    d0 = max(0.0, unique_depths[0] - (mids[0] - unique_depths[0]))
+    d1 = min(2890.0, unique_depths[-1] + (unique_depths[-1] - mids[-1]))
     return np.concatenate([[d0], mids, [d1]])
 
 
@@ -106,36 +115,41 @@ def main():
         sys.exit(1)
 
     input_path = Path(sys.argv[1])
-    out_path   = input_path.with_name(input_path.stem + "_srts_filtered.vtu")
+    output_path = Path(sys.argv[2])
 
     # ── 1. Load ─────────────────────────────────────────────────────────────
     print(f"Reading {input_path} ...", flush=True)
-    mesh    = pv.read(input_path)
-    xyz     = np.asarray(mesh.points)
-    vs      = np.asarray(mesh.point_data["Vs"], dtype=np.float64)
+    mesh = pv.read(input_path)
+    xyz = np.asarray(mesh.points)
+    vs = np.asarray(mesh.point_data["Vs"], dtype=np.float64)
     n_total = len(vs)
     print(f"  {n_total:,} total points")
 
     nan_mask = ~np.isfinite(vs)
     if nan_mask.any():
-        print(f"  WARNING: {nan_mask.sum():,} non-finite Vs values — will replace with layer mean before expansion")
+        print(
+            f"  WARNING: {nan_mask.sum():,} non-finite Vs values — will replace with layer mean before expansion"
+        )
 
     # ── 2. Spherical coordinates ─────────────────────────────────────────────
-    r        = np.linalg.norm(xyz, axis=1)
+    r = np.linalg.norm(xyz, axis=1)
     depth_km = np.clip((RMAX - r) * D_KM, 0.0, 2890.0)
-    lat      = np.degrees(np.arcsin(np.clip(xyz[:, 2] / r, -1.0, 1.0)))
-    lon      = np.degrees(np.arctan2(xyz[:, 1], xyz[:, 0]))
+    lat = np.degrees(np.arcsin(np.clip(xyz[:, 2] / r, -1.0, 1.0)))
+    lon = np.degrees(np.arctan2(xyz[:, 1], xyz[:, 0]))
 
     # ── 3. Depth layers ───────────────────────────────────────────────────────
     unique_depths, layer_masks = detect_depth_layers(depth_km)
     n_layers = len(unique_depths)
-    n_horiz  = layer_masks[0].sum()
-    print(f"  {n_layers} depth layers, {n_horiz:,} pts/layer  "
-          f"({unique_depths[0]:.1f}–{unique_depths[-1]:.1f} km)")
+    n_horiz = layer_masks[0].sum()
+    print(
+        f"  {n_layers} depth layers, {n_horiz:,} pts/layer  "
+        f"({unique_depths[0]:.1f}–{unique_depths[-1]:.1f} km)"
+    )
 
     # Extruded mesh: all layers must share the same horizontal point count.
-    assert all(m.sum() == n_horiz for m in layer_masks), \
-        "Layers have different point counts — non-extruded meshes are not supported."
+    assert all(
+        m.sum() == n_horiz for m in layer_masks
+    ), "Layers have different point counts — non-extruded meshes are not supported."
 
     # ── 4. Regular intermediate grid ─────────────────────────────────────────
     lon_grid, lat_grid = regular_grid(N_LAT, N_LON)
@@ -154,7 +168,7 @@ def main():
 
     # ── 6. Stack layers, fix NaNs, IDW to grid, subtract per-layer mean ───────
     t0 = _tick("Mapping Vs to regular grid")
-    vs_layers = np.stack([vs[m] for m in layer_masks])           # (n_layers, n_horiz)
+    vs_layers = np.stack([vs[m] for m in layer_masks])  # (n_layers, n_horiz)
 
     if nan_mask.any():
         for i in range(n_layers):
@@ -162,8 +176,8 @@ def main():
             if bad.any():
                 vs_layers[i, bad] = np.nanmean(vs_layers[i])
 
-    vs_on_grid  = idw_apply(fwd_w, fwd_idx, vs_layers)          # (n_layers, n_grid)
-    layer_means = vs_on_grid.mean(axis=1)                        # (n_layers,)
+    vs_on_grid = idw_apply(fwd_w, fwd_idx, vs_layers)  # (n_layers, n_grid)
+    layer_means = vs_on_grid.mean(axis=1)  # (n_layers,)
     vs_on_grid -= layer_means[:, np.newaxis]
     _tock(t0)
 
@@ -178,7 +192,7 @@ def main():
 
     t0 = _tick("Reparameterizing")
     projector = DepthParameterization()
-    model     = projector.reparameterize(list(layer_cilms), depth_boundaries(unique_depths))
+    model = projector.reparameterize(list(layer_cilms), depth_boundaries(unique_depths))
     _tock(t0)
 
     print("  Loading S40RTS, S20RTS, S12RTS ...")
@@ -186,9 +200,9 @@ def main():
 
     t0 = _tick("Filtering (S40 / S20 / S12)")
     filtered_40 = s40.filter(model)
-    sl20        = s20.lmax + 1
+    sl20 = s20.lmax + 1
     filtered_20 = s20.filter(model[:, :, :sl20, :sl20])
-    sl12        = s12.lmax + 1
+    sl12 = s12.lmax + 1
     filtered_12 = s12.filter(model[:, :, :sl12, :sl12])
     _tock(t0)
 
@@ -200,7 +214,7 @@ def main():
 
     # ── 8. Synthesize back to grid, IDW to mesh, restore mean ────────────────
     t0 = _tick("Synthesizing back to mesh")
-    grid_40 = expander.synthesize_batch(at_depths_40)   # (n_layers, n_grid)
+    grid_40 = expander.synthesize_batch(at_depths_40)  # (n_layers, n_grid)
     grid_20 = expander.synthesize_batch(at_depths_20)
     grid_12 = expander.synthesize_batch(at_depths_12)
 
@@ -222,9 +236,9 @@ def main():
     mesh.point_data["Vs_S40RTS"] = vs_s40
     mesh.point_data["Vs_S20RTS"] = vs_s20
     mesh.point_data["Vs_S12RTS"] = vs_s12
-    mesh.save(out_path)
+    mesh.save(output_path)
 
-    print(f"\nDone. Written to {out_path}")
+    print(f"\nDone. Written to {output_path}")
     print(f"  Vs_S40RTS: {vs_s40.min():.0f} – {vs_s40.max():.0f} m/s")
     print(f"  Vs_S20RTS: {vs_s20.min():.0f} – {vs_s20.max():.0f} m/s")
     print(f"  Vs_S12RTS: {vs_s12.min():.0f} – {vs_s12.max():.0f} m/s")

@@ -13,10 +13,11 @@ def recast_variables(ds: xr.Dataset) -> xr.Dataset:
     var_mapping = {
         "Temperature_K": "T",
         "TemperatureDeviation_K": "dT",
-        "Vs": "dlnVs_linan_percent",
-        "Vp": "dlnVp_linan_percent",
+        "dlnVs_percent": "dlnVs_linan_percent",
+        "dlnVp_percent": "dlnVp_linan_percent",
         "Vs_S40RTS": "dlnVs_tofi_percent",
         "Vp_filtered": "dlnVp_tofi_percent",
+        "Vs_filtered": "dlnVs_tofi_percent",
     }
 
     # construct a dictionary of variables to keep, based on the name mapping and what is actually in the dataset

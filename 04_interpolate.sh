@@ -37,6 +37,6 @@ interp() {
 
 interp "${WORK_DIR}/converted.vtu"                  "${WORK_DIR}/converted.nc"
 interp "${WORK_DIR}/converted_srts_filtered.vtu"    "${WORK_DIR}/converted_srts_filtered.nc"
-interp "${WORK_DIR}/converted_tofi_filtered.vtu"    "${WORK_DIR}/converted_tofi_filtered.nc"
+interp "${WORK_DIR}/converted_llnl_filtered.vtu"    "${WORK_DIR}/converted_llnl_filtered.nc"
 
 echo "[$(date)] All done."

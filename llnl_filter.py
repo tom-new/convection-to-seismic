@@ -34,10 +34,11 @@ from llnltofi._constants import (
 
 RMAX = 2.208
 D_KM = 2891.0
-IDW_K_BACK = 8   # LLNL neighbours used for back-projection IDW
+IDW_K_BACK = 8  # LLNL neighbours used for back-projection IDW
 
 
 # ── coordinate helpers ────────────────────────────────────────────────────────
+
 
 def nondim_to_spherical(coords):
     """Non-dimensional Cartesian → (gc_lat_deg, lon_deg, radius_km).
@@ -64,15 +65,18 @@ def nondim_to_physical_xyz(coords):
 
 # ── filtering helpers ─────────────────────────────────────────────────────────
 
+
 def layer_mean_1d(slowness):
     """Depth-dependent 1D reference from layer-wise mean slowness."""
     n_um_tz = N_LAYERS_UM_TZ * N_POINTS_UM_TZ
     s_um = slowness[:n_um_tz].reshape(N_LAYERS_UM_TZ, N_POINTS_UM_TZ)
     s_lm = slowness[n_um_tz:].reshape(N_LAYERS_LM, N_POINTS_LM)
-    return np.concatenate([
-        np.repeat(s_um.mean(axis=1), N_POINTS_UM_TZ),
-        np.repeat(s_lm.mean(axis=1), N_POINTS_LM),
-    ])
+    return np.concatenate(
+        [
+            np.repeat(s_um.mean(axis=1), N_POINTS_UM_TZ),
+            np.repeat(s_lm.mean(axis=1), N_POINTS_LM),
+        ]
+    )
 
 
 def apply_filter(velocity_on_llnl, model):
@@ -92,6 +96,7 @@ def apply_filter(velocity_on_llnl, model):
 
 # ── back-projection ───────────────────────────────────────────────────────────
 
+
 def back_project_idw(llnl_values, llnl_xyz, mesh_xyz, k=IDW_K_BACK):
     """IDW back-projection from LLNL grid → arbitrary mesh points.
 
@@ -100,13 +105,14 @@ def back_project_idw(llnl_values, llnl_xyz, mesh_xyz, k=IDW_K_BACK):
     """
     tree = cKDTree(llnl_xyz)
     dists, idx = tree.query(mesh_xyz, k=k, workers=1)
-    dists = np.where(dists == 0.0, 1e-10, dists)   # guard exact coincidences
+    dists = np.where(dists == 0.0, 1e-10, dists)  # guard exact coincidences
     weights = 1.0 / dists
     weights /= weights.sum(axis=1, keepdims=True)
     return np.einsum("ij,ij->i", weights, llnl_values[idx])
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
+
 
 def main():
     if len(sys.argv) < 3:
@@ -119,8 +125,8 @@ def main():
     # ── 1. Load LLNL model ─────────────────────────────────────────────────
     print("Loading LLNL resolution model...")
     model = llnltofi.ResolutionModel()
-    llnl_xyz = model.coordinates_in_xyz      # (N_MODEL, 3) metres
-    _ = model.R                              # ensure R.npz is present
+    llnl_xyz = model.coordinates_in_xyz  # (N_MODEL, 3) metres
+    _ = model.R  # ensure R.npz is present
     print(f"  {model.n_model:,} grid points, {model.n_layers} layers")
 
     # ── 2. Load simulation mesh ────────────────────────────────────────────
@@ -133,8 +139,8 @@ def main():
 
     # ── 3. Convert mesh coordinates ────────────────────────────────────────
     print("Converting coordinates...")
-    sph_coords = nondim_to_spherical(coords)   # (N, 3): gc_lat_deg, lon_deg, radius_km
-    mesh_xyz   = nondim_to_physical_xyz(coords) # (N, 3): metres
+    sph_coords = nondim_to_spherical(coords)  # (N, 3): gc_lat_deg, lon_deg, radius_km
+    mesh_xyz = nondim_to_physical_xyz(coords)  # (N, 3): metres
 
     # ── 4. Forward IDW: mesh → LLNL grid ──────────────────────────────────
     print("\nForward IDW: Vs mesh → LLNL grid...")
@@ -164,9 +170,13 @@ def main():
 
     print("\n--- Summary ---")
     print(f"  Vs:   {vs.min():.0f} – {vs.max():.0f} m/s")
-    print(f"  Vs_f: {vs_filtered_mesh.min():.0f} – {vs_filtered_mesh.max():.0f} m/s")
+    print(
+        f"  Vs_filtered: {vs_filtered_mesh.min():.0f} – {vs_filtered_mesh.max():.0f} m/s"
+    )
     print(f"  Vp:   {vp.min():.0f} – {vp.max():.0f} m/s")
-    print(f"  Vp_f: {vp_filtered_mesh.min():.0f} – {vp_filtered_mesh.max():.0f} m/s")
+    print(
+        f"  Vp_filtered: {vp_filtered_mesh.min():.0f} – {vp_filtered_mesh.max():.0f} m/s"
+    )
     print("Done.")
 
 

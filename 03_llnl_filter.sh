@@ -15,7 +15,7 @@
 # OUTPUT_VTU - where to write the LLNL-filtered result
 
 INPUT_VTU=/Volumes/Grey/firedrake_simulations/HT/Z22/0Ma/converted.vtu
-OUTPUT_VTU=/Volumes/Grey/firedrake_simulations/HT/Z22/0Ma/converted_tofi_filtered.vtu
+OUTPUT_VTU=/Volumes/Grey/firedrake_simulations/HT/Z22/0Ma/converted_llnl_filtered.vtu
 
 # set -euo pipefail
 
@@ -26,5 +26,5 @@ OUTPUT_VTU=/Volumes/Grey/firedrake_simulations/HT/Z22/0Ma/converted_tofi_filtere
 SCRIPTS_DIR="$(dirname "$(realpath "$0")")"
 
 echo "[$(date)] Starting LLNL tomographic filtering"
-python3 "${SCRIPTS_DIR}/tofi_filter.py" "${INPUT_VTU}" "${OUTPUT_VTU}"
+python3 "${SCRIPTS_DIR}/llnl_filter.py" "${INPUT_VTU}" "${OUTPUT_VTU}"
 echo "[$(date)] Done."

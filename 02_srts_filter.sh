@@ -15,6 +15,7 @@
 # The script writes <stem>_srts_filtered.vtu alongside the input automatically.
 
 INPUT_VTU=/Volumes/Grey/firedrake_simulations/HT/Z22/0Ma/converted.vtu
+OUTPUT_VTU=/Volumes/Grey/firedrake_simulations/HT/Z22/0Ma/converted_srts_filtered.vtu
 
 # set -euo pipefail
 
@@ -25,5 +26,5 @@ INPUT_VTU=/Volumes/Grey/firedrake_simulations/HT/Z22/0Ma/converted.vtu
 SCRIPTS_DIR="$(dirname "$(realpath "$0")")"
 
 echo "[$(date)] Starting S-RTS tomographic filtering"
-python3 "${SCRIPTS_DIR}/srts_filter.py" "${INPUT_VTU}"
+python3 "${SCRIPTS_DIR}/srts_filter.py" "${INPUT_VTU}" "${OUTPUT_VTU}"
 echo "[$(date)] Done."
