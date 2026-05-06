@@ -161,8 +161,8 @@ def main():
     vp_filtered_mesh = back_project_idw(vp_filtered_llnl, llnl_xyz, mesh_xyz)
 
     # ── 7. Write output ────────────────────────────────────────────────────
-    mesh.point_data["Vs_LLNL"] = vs_filtered_mesh
-    mesh.point_data["Vp_LLNL"] = vp_filtered_mesh
+    mesh.point_data["Vs_tofi"] = vs_filtered_mesh
+    mesh.point_data["Vp_tofi"] = vp_filtered_mesh
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     print(f"\nWriting {output_path} ...")
@@ -170,13 +170,9 @@ def main():
 
     print("\n--- Summary ---")
     print(f"  Vs:   {vs.min():.0f} – {vs.max():.0f} m/s")
-    print(
-        f"  Vs_filtered: {vs_filtered_mesh.min():.0f} – {vs_filtered_mesh.max():.0f} m/s"
-    )
+    print(f"  Vs_tofi: {vs_filtered_mesh.min():.0f} – {vs_filtered_mesh.max():.0f} m/s")
     print(f"  Vp:   {vp.min():.0f} – {vp.max():.0f} m/s")
-    print(
-        f"  Vp_filtered: {vp_filtered_mesh.min():.0f} – {vp_filtered_mesh.max():.0f} m/s"
-    )
+    print(f"  Vp_tofi: {vp_filtered_mesh.min():.0f} – {vp_filtered_mesh.max():.0f} m/s")
     print("Done.")
 
 

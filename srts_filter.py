@@ -233,15 +233,15 @@ def main():
         vs_s12[mask] = mesh_12[i]
 
     # ── 9. Write output ───────────────────────────────────────────────────────
-    mesh.point_data["Vs_S40RTS"] = vs_s40
-    mesh.point_data["Vs_S20RTS"] = vs_s20
-    mesh.point_data["Vs_S12RTS"] = vs_s12
+    mesh.point_data["Vs_tofi"] = vs_s40
+    mesh.point_data["Vs_S20RTS_tofi"] = vs_s20
+    mesh.point_data["Vs_S12RTS_tofi"] = vs_s12
     mesh.save(output_path)
 
     print(f"\nDone. Written to {output_path}")
-    print(f"  Vs_S40RTS: {vs_s40.min():.0f} – {vs_s40.max():.0f} m/s")
-    print(f"  Vs_S20RTS: {vs_s20.min():.0f} – {vs_s20.max():.0f} m/s")
-    print(f"  Vs_S12RTS: {vs_s12.min():.0f} – {vs_s12.max():.0f} m/s")
+    print(f"  Vs_tofi: {vs_s40.min():.0f} – {vs_s40.max():.0f} m/s")
+    print(f"  Vs_S20RTS_tofi: {vs_s20.min():.0f} – {vs_s20.max():.0f} m/s")
+    print(f"  Vs_S12RTS_tofi: {vs_s12.min():.0f} – {vs_s12.max():.0f} m/s")
 
 
 if __name__ == "__main__":
