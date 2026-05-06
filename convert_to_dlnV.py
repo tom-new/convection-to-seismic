@@ -17,8 +17,8 @@ import xarray as xr
 field_mapping = {
     "Vs": "dlnVs",
     "Vp": "dlnVp",
-    "Vs_filtered": "dlnVs_tofi",
-    "Vp_filtered": "dlnVp_tofi",
+    "Vs_tofi": "dlnVs_tofi",
+    "Vp_tofi": "dlnVp_tofi",
 }
 
 
@@ -95,21 +95,34 @@ def main():
     ds.to_netcdf(output_path)
 
     print("\n--- Summary ---")
-    if "Vs" in ds.data_vars:
-        print(
-            f"Vs range:       {np.nanmin(ds['Vs']):.0f} - {np.nanmax(ds['Vs']):.0f} m/s"
-        )
+    print(f"    Vs range: {ds['Vs'].min():.0f} - {ds['Vs'].max():.0f} m/s")
     if "Vp" in ds.data_vars:
-        print(
-            f"Vp range:       {np.nanmin(ds['Vp']):.0f} - {np.nanmax(ds['Vp']):.0f} m/s"
-        )
-    if "dlnVs_percent" in ds.data_vars:
-        print(
-            f"dlnVs range:    {np.nanmin(ds['dlnVs_percent']):.1f} - {np.nanmax(ds['dlnVs_percent']):.2f}%"
-        )
+        print(f"    Vp range: {ds['Vp'].min():.0f} - {ds['Vp'].max():.0f} m/s")
+
+    print(
+        f"    dlnVs range: {ds['dlnVs_percent'].min():.2f}% - {ds['dlnVs_percent'].max():.2f}%"
+    )
     if "dlnVp_percent" in ds.data_vars:
         print(
-            f"dlnVp range:    {np.nanmin(ds['dlnVp_percent']):.1f} - {np.nanmax(ds['dlnVp_percent']):.2f}%"
+            f"    dlnVp range: {ds['dlnVp_percent'].min():.2f}% - {ds['dlnVp_percent'].max():.2f}%"
+        )
+
+    if "Vs_tofi" in ds.data_vars:
+        print(
+            f"    Filtered Vs range: {ds['Vs_tofi'].min():.0f} - {ds['Vs_tofi'].max():.0f} m/s"
+        )
+    if "Vp_tofi" in ds.data_vars:
+        print(
+            f"    Filtered Vp range: {ds['Vp_tofi'].min():.0f} - {ds['Vp_tofi'].max():.0f} m/s"
+        )
+
+    if "dlnVs_tofi_percent" in ds.data_vars:
+        print(
+            f"    Filtered dlnVs range: {ds['dlnVs_tofi_percent'].min():.2f}% - {ds['dlnVs_tofi_percent'].max():.2f}%"
+        )
+    if "dlnVp_tofi_percent" in ds.data_vars:
+        print(
+            f"    Filtered dlnVp range: {ds['dlnVp_tofi_percent'].min():.2f}% - {ds['dlnVp_tofi_percent'].max():.2f}%"
         )
     print("Done.")
 

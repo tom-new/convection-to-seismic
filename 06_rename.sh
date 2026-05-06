@@ -8,8 +8,8 @@ rename () {
     python3 rename.py "${input}" "${output}"
 }
 
-rename "${INPUT_DIR}/converted_dlnV.nc"                  "${OUTPUT_DIR}/HT_Z22_sia.nc"
-rename "${INPUT_DIR}/converted_srts_filtered_dlnV.nc"    "${OUTPUT_DIR}/HT_Z22_S40RTS_ToFi_sia.nc"
-rename "${INPUT_DIR}/converted_tofi_filtered_dlnV.nc"    "${OUTPUT_DIR}/HT_Z22_LLNL_ToFi_sia.nc"
+rename "${INPUT_DIR}/converted_dlnV.nc"                  "${OUTPUT_DIR}/HT_Z22.nc"
+rename "${INPUT_DIR}/converted_srts_filtered_dlnV.nc"    "${OUTPUT_DIR}/HT_Z22_S40RTS_ToFi.nc"
+rename "${INPUT_DIR}/converted_llnl_filtered_dlnV.nc"    "${OUTPUT_DIR}/HT_Z22_LLNL_ToFi.nc"
 
 echo "All done."
