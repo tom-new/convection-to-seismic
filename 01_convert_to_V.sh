@@ -27,5 +27,5 @@ OUTPUT_VTU=/Volumes/Grey/firedrake_simulations/HT/Z22/0Ma/converted.vtu
 SCRIPTS_DIR="$(dirname "$(realpath "$0")")"
 
 echo "[$(date)] Starting temperature → Vs/Vp conversion"
-python3 "${SCRIPTS_DIR}/convert_to_vs.py" "${INPUT_PVTU}" "${OUTPUT_VTU}"
+python3 "${SCRIPTS_DIR}/convert_to_V.py" "${INPUT_PVTU}" "${OUTPUT_VTU}"
 echo "[$(date)] Done."
