@@ -16,12 +16,15 @@
 # Set WORK_DIR to the directory that holds your converted*.vtu files.
 
 WORK_DIR=/scratch/xd2/USERNAME
+PREFIX=converted
 
 set -euo pipefail
 
 module use /g/data/fp50/modules
-module load firedrake/main-20260114
-export PYTHONPATH=/scratch/xd2/sg8812/local/lib/python3.12/site-packages:/scratch/xd2/sg8812/g-interp:${PYTHONPATH:-}
+module load firedrake/main-20260417
+# Prepend a local g-drift checkout if you need the SLB_24 pyroliteCFMASNaCr
+# dataset (not yet in the installed gdrift). Edit the path or drop the entry.
+export PYTHONPATH=/scratch/xd2/USERNAME/g-drift:/scratch/xd2/USERNAME/local/lib/python3.11/site-packages:/scratch/xd2/USERNAME/g-interp:${PYTHONPATH:-}
 
 interp() {
     local vtu="$1"
@@ -35,8 +38,8 @@ interp() {
         --output "${nc}"
 }
 
-interp "${WORK_DIR}/converted.vtu"                  "${WORK_DIR}/converted.nc"
-interp "${WORK_DIR}/converted_srts_filtered.vtu"    "${WORK_DIR}/converted_srts_filtered.nc"
-interp "${WORK_DIR}/converted_tofi_filtered.vtu"    "${WORK_DIR}/converted_tofi_filtered.nc"
+interp "${WORK_DIR}/${PREFIX}.vtu"                  "${WORK_DIR}/${PREFIX}.nc"
+interp "${WORK_DIR}/${PREFIX}_srts_filtered.vtu"    "${WORK_DIR}/${PREFIX}_srts_filtered.nc"
+interp "${WORK_DIR}/${PREFIX}_tofi_filtered.vtu"    "${WORK_DIR}/${PREFIX}_tofi_filtered.nc"
 
 echo "[$(date)] All done."
