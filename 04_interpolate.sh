@@ -39,6 +39,6 @@ interp() {
 
 interp "${WORK}/${PREFIX}.vtu"                  "${WORK}/${PREFIX}.nc"
 interp "${WORK}/${PREFIX}_srts_filtered.vtu"    "${WORK}/${PREFIX}_srts_filtered.nc"
-interp "${WORK}/${PREFIX}_tofi_filtered.vtu"    "${WORK}/${PREFIX}_tofi_filtered.nc"
+interp "${WORK}/${PREFIX}_llnl_filtered.vtu"    "${WORK}/${PREFIX}_llnl_filtered.nc"
 
 echo "[$(date)] All done."

@@ -20,12 +20,12 @@ set -euo pipefail
 
 WORK=/scratch/xd2/sg8812/kat-conversion
 INPUT_VTU="${WORK}/${NAME}_converted.vtu"
-OUTPUT_VTU="${WORK}/${NAME}_converted_tofi_filtered.vtu"
+OUTPUT_VTU="${WORK}/${NAME}_converted_llnl_filtered.vtu"
 
 module use /g/data/fp50/modules
 module load firedrake/main-20260417
 export PYTHONPATH=/scratch/xd2/sg8812/g-drift:/scratch/xd2/sg8812/local/lib/python3.11/site-packages:${PYTHONPATH:-}
 
 echo "[$(date)] LLNL filtering ${INPUT_VTU} -> ${OUTPUT_VTU}"
-python3 "${WORK}/tofi_filter.py" "${INPUT_VTU}" "${OUTPUT_VTU}"
+python3 "${WORK}/llnl_filter.py" "${INPUT_VTU}" "${OUTPUT_VTU}"
 echo "[$(date)] Done."
