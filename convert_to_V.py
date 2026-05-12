@@ -2,7 +2,7 @@
 Convert non-dimensional mantle convection output (PVTU) to seismic velocities.
 
 Loads the full dataset at once, dimensionalises temperature, then computes Vs
-and Vp using the SLB_21 pyroliteFMAS thermodynamic model with Cammarano Q3
+and Vp using the SLB_24 pyroliteCFMASNaCr thermodynamic model with Cammarano Q3
 anelastic correction. The thermodynamic table is regularised against the
 spherically-averaged temperature profile extracted from the mesh itself, which
 removes spurious phase-transition jumps in the Vs(T) relationship. Output
@@ -94,12 +94,12 @@ def main():
     print("Building radial temperature profile ...")
     temperature_profile = build_average_temperature_profile(depth_m, t_kelvin)
 
-    print("Loading SLB_21 pyroliteFMAS ...")
-    slb21 = gdrift.ThermodynamicModel("SLB_21", "pyroliteFMAS")
+    print("Loading SLB_24 pyroliteCFMASNaCr ...")
+    slb = gdrift.ThermodynamicModel("SLB_24", "pyroliteCFMASNaCr")
 
     print("Regularising thermodynamic table ...")
-    regular_slb21 = gdrift.regularise_thermodynamic_table(
-        slb21,
+    regular_slb = gdrift.regularise_thermodynamic_table(
+        slb,
         temperature_profile,
         regular_range={
             "v_s": (-1.5, 0.0),
@@ -110,12 +110,19 @@ def main():
 
     print(f"Applying Cammarano {Q_PROFILE} anelastic correction ...")
     anelastic = gdrift.CammaranoAnelasticityModel.from_q_profile(Q_PROFILE)
-    corrected = gdrift.apply_anelastic_correction(regular_slb21, anelastic)
+    corrected = gdrift.apply_anelastic_correction(regular_slb, anelastic)
 
+<<<<<<< HEAD:convert_to_V.py
     depth_min = slb21.get_depths().min()
     depth_max = slb21.get_depths().max()
     temp_min = slb21.get_temperatures().min()
     temp_max = slb21.get_temperatures().max()
+=======
+    depth_min = slb.get_depths().min()
+    depth_max = slb.get_depths().max()
+    temp_min  = slb.get_temperatures().min()
+    temp_max  = slb.get_temperatures().max()
+>>>>>>> upstream/main:convert_to_vs.py
 
     depth_c = np.clip(depth_m, depth_min, depth_max)
     temp_c = np.clip(t_kelvin, temp_min, temp_max)

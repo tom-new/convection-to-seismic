@@ -1,6 +1,6 @@
 """
 tofi_filter.py — Tomographic filtering of Vs and Vp using the
-LLNL-G3D-JPS resolution matrix with IDW interpolation.
+LLNL-G3D-JPS resolution matrix with layered interpolation.
 
 Usage:
     python tofi_filter.py <input.vtu> <output.vtu>
@@ -10,9 +10,9 @@ as point-data fields (m/s) and non-dimensional Cartesian coordinates
 (RMAX=2.208, D_KM=2891).  The script adds Vs_filtered and Vp_filtered
 fields and writes a new VTU.
 
-Forward projection (mesh → LLNL grid) uses the layer-by-layer IDW in
-llnltofi.interpolation.project_onto_grid.  Back-projection (LLNL → mesh)
-uses a 3-D inverse-distance-weighted average over the k nearest LLNL nodes.
+Forward projection (mesh -> LLNL grid) uses the layer-by-layer IDW in
+llnltofi.interpolation.project_onto_grid.  Back-projection (LLNL -> mesh)
+uses the layered interpolation in llnltofi.interpolation.project_from_grid.
 """
 
 import sys
@@ -20,10 +20,9 @@ from pathlib import Path
 
 import numpy as np
 import pyvista as pv
-from scipy.spatial import cKDTree
 
 import llnltofi
-from llnltofi.interpolation import project_onto_grid
+from llnltofi.interpolation import project_onto_grid, project_from_grid
 from llnltofi._constants import (
     N_LAYERS_UM_TZ,
     N_LAYERS_LM,
@@ -34,16 +33,15 @@ from llnltofi._constants import (
 
 RMAX = 2.208
 D_KM = 2891.0
-IDW_K_BACK = 8  # LLNL neighbours used for back-projection IDW
 
 
-# ── coordinate helpers ────────────────────────────────────────────────────────
+# -- coordinate helpers --------------------------------------------------------
 
 
 def nondim_to_spherical(coords):
-    """Non-dimensional Cartesian → (gc_lat_deg, lon_deg, radius_km).
+    """Non-dimensional Cartesian -> (gc_lat_deg, lon_deg, radius_km).
 
-    This is the format expected by project_onto_grid.
+    This is the format expected by project_onto_grid and project_from_grid.
     """
     r = np.linalg.norm(coords, axis=1)
     depth_km = (RMAX - r) * D_KM
@@ -54,16 +52,7 @@ def nondim_to_spherical(coords):
     return np.column_stack([lat_deg, lon_deg, radius_km])
 
 
-def nondim_to_physical_xyz(coords):
-    """Non-dimensional Cartesian → physical Cartesian in metres."""
-    r = np.linalg.norm(coords, axis=1)
-    depth_km = (RMAX - r) * D_KM
-    radius_m = (R_EARTH_KM - depth_km) * 1e3
-    unit = coords / r[:, np.newaxis]
-    return unit * radius_m[:, np.newaxis]
-
-
-# ── filtering helpers ─────────────────────────────────────────────────────────
+# -- filtering helpers ---------------------------------------------------------
 
 
 def layer_mean_1d(slowness):
@@ -83,9 +72,7 @@ def apply_filter(velocity_on_llnl, model):
     """Filter one velocity field through the resolution matrix.
 
     Converts to slowness, removes the layer-mean 1D reference, applies R,
-    then recovers velocity.  No amplitude scaling is needed for either Vp
-    or Vs because R operates on the actual slowness anomalies regardless of
-    wavetype (see Simmons et al. 2019, Sec. 3).
+    then recovers velocity.
     """
     s = 1.0 / velocity_on_llnl
     s_1d = layer_mean_1d(s)
@@ -94,24 +81,7 @@ def apply_filter(velocity_on_llnl, model):
     return 1.0 / (s_1d + ds_filtered)
 
 
-# ── back-projection ───────────────────────────────────────────────────────────
-
-
-def back_project_idw(llnl_values, llnl_xyz, mesh_xyz, k=IDW_K_BACK):
-    """IDW back-projection from LLNL grid → arbitrary mesh points.
-
-    Finds the k nearest LLNL grid nodes for every mesh point in 3-D
-    physical space (metres) and returns the inverse-distance-weighted mean.
-    """
-    tree = cKDTree(llnl_xyz)
-    dists, idx = tree.query(mesh_xyz, k=k, workers=1)
-    dists = np.where(dists == 0.0, 1e-10, dists)  # guard exact coincidences
-    weights = 1.0 / dists
-    weights /= weights.sum(axis=1, keepdims=True)
-    return np.einsum("ij,ij->i", weights, llnl_values[idx])
-
-
-# ── main ──────────────────────────────────────────────────────────────────────
+# -- main ----------------------------------------------------------------------
 
 
 def main():
@@ -122,14 +92,13 @@ def main():
     input_path = sys.argv[1]
     output_path = sys.argv[2]
 
-    # ── 1. Load LLNL model ─────────────────────────────────────────────────
+    # -- 1. Load LLNL model ---------------------------------------------------
     print("Loading LLNL resolution model...")
     model = llnltofi.ResolutionModel()
-    llnl_xyz = model.coordinates_in_xyz  # (N_MODEL, 3) metres
     _ = model.R  # ensure R.npz is present
     print(f"  {model.n_model:,} grid points, {model.n_layers} layers")
 
-    # ── 2. Load simulation mesh ────────────────────────────────────────────
+    # -- 2. Load simulation mesh -----------------------------------------------
     print(f"\nReading {input_path} ...")
     mesh = pv.read(input_path)
     coords = np.asarray(mesh.points)
@@ -137,32 +106,31 @@ def main():
     vp = np.asarray(mesh.point_data["Vp"])
     print(f"  {len(vs):,} mesh points")
 
-    # ── 3. Convert mesh coordinates ────────────────────────────────────────
+    # -- 3. Convert mesh coordinates -------------------------------------------
     print("Converting coordinates...")
-    sph_coords = nondim_to_spherical(coords)  # (N, 3): gc_lat_deg, lon_deg, radius_km
-    mesh_xyz = nondim_to_physical_xyz(coords)  # (N, 3): metres
+    sph_coords = nondim_to_spherical(coords)
 
-    # ── 4. Forward IDW: mesh → LLNL grid ──────────────────────────────────
-    print("\nForward IDW: Vs mesh → LLNL grid...")
+    # -- 4. Forward IDW: mesh -> LLNL grid -------------------------------------
+    print("\nForward IDW: Vs mesh -> LLNL grid...")
     vs_on_llnl = project_onto_grid(sph_coords, vs, model)
-    print("Forward IDW: Vp mesh → LLNL grid...")
+    print("Forward IDW: Vp mesh -> LLNL grid...")
     vp_on_llnl = project_onto_grid(sph_coords, vp, model)
 
-    # ── 5. Apply resolution filter ─────────────────────────────────────────
+    # -- 5. Apply resolution filter --------------------------------------------
     print("\nFiltering Vs through resolution matrix...")
     vs_filtered_llnl = apply_filter(vs_on_llnl, model)
     print("Filtering Vp through resolution matrix...")
     vp_filtered_llnl = apply_filter(vp_on_llnl, model)
 
-    # ── 6. Backward IDW: LLNL grid → mesh ─────────────────────────────────
-    print(f"\nBack-projection IDW (k={IDW_K_BACK}): Vs LLNL → mesh...")
-    vs_filtered_mesh = back_project_idw(vs_filtered_llnl, llnl_xyz, mesh_xyz)
-    print(f"Back-projection IDW (k={IDW_K_BACK}): Vp LLNL → mesh...")
-    vp_filtered_mesh = back_project_idw(vp_filtered_llnl, llnl_xyz, mesh_xyz)
+    # -- 6. Layered back-projection: LLNL grid -> mesh -------------------------
+    print("\nBack-projection (layered): Vs LLNL -> mesh...")
+    vs_filtered_mesh = project_from_grid(vs_filtered_llnl, sph_coords, model)
+    print("Back-projection (layered): Vp LLNL -> mesh...")
+    vp_filtered_mesh = project_from_grid(vp_filtered_llnl, sph_coords, model)
 
-    # ── 7. Write output ────────────────────────────────────────────────────
-    mesh.point_data["Vs_tofi"] = vs_filtered_mesh
-    mesh.point_data["Vp_tofi"] = vp_filtered_mesh
+    # -- 7. Write output -------------------------------------------------------
+    mesh.point_data["Vs_filtered"] = vs_filtered_mesh
+    mesh.point_data["Vp_filtered"] = vp_filtered_mesh
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     print(f"\nWriting {output_path} ...")

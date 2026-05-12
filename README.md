@@ -57,9 +57,9 @@ To compare it with seismology we need to predict what seismic waves would
 measure in that mantle, that is, we need Vs (shear-wave velocity) and Vp
 (compressional-wave velocity) as a function of temperature and pressure.
 
-**Thermodynamic model.** We use the SLB_21 dataset (Stixrude &
-Lithgow-Bertelloni 2005, updated 2021) with a pyrolite FMAS (FeO-MgO-Al_2O_3-
-SiO_2) bulk composition.  This is a pre-computed thermodynamic look-up table:
+**Thermodynamic model.** We use the SLB_24 dataset (Stixrude &
+Lithgow-Bertelloni 2024) with a pyrolite CFMASNaCr (CaO-FeO-MgO-Al2O3-SiO2-
+Na2O-Cr2O3) bulk composition.  This is a pre-computed thermodynamic look-up table:
 for each (temperature, depth) pair it gives Vs, Vp, and density, derived from
 mineral-physics equations of state for the stable phase assemblage at those
 conditions.  The table covers the full mantle from 0 to 2891 km. These are
@@ -81,7 +81,7 @@ temperature anomalies $\delta T$ to velocity anomalies $\delta V_s$ linearly
 around that reference.  The result is smooth and free of phase-transition
 artefacts.
 
-**Anelastic correction.** The SLB_21 table gives *elastic* velocities, i.e.
+**Anelastic correction.** The SLB_24 table gives *elastic* velocities, i.e.
 what you would measure at infinite frequency.  Real seismic waves travel at
 roughly 1 Hz, and at the high temperatures in the deep mantle this matters:
 anelastic attenuation causes velocity dispersion, meaning the actual seismic
@@ -138,10 +138,10 @@ harmonics horizontally and 21 splines vertically.  The filtering procedure is:
    the model's resolution and damps vertical structure that the inversion could
    not constrain.
 
-5. **Synthesis + grid -> mesh (IDW).** The filtered coefficients are synthesised
-   back to the regular grid and then interpolated back to the mesh nodes by
-   IDW.  The depth-layer mean is restored before the final output so that
-   absolute velocities (not just anomalies) are preserved.
+5. **Synthesis + grid -> mesh (layered).** The filtered coefficients are
+   synthesised back to the regular grid and then interpolated back to the mesh
+   nodes layer-by-layer.  The depth-layer mean is restored before the final
+   output so that absolute velocities (not just anomalies) are preserved.
 
 The output VTU adds three fields alongside the original Vs: `Vs_S40RTS`,
 `Vs_S20RTS`, and `Vs_S12RTS`.
@@ -181,9 +181,10 @@ The filtering steps are:
    acts on slowness anomalies irrespective of wave type.
 
 4. **Recover velocity + back-projection.** The filtered slowness anomaly is
-   added back to the 1D reference and converted to velocity.  A 3D
-   inverse-distance-weighted interpolation (k=8 nearest LLNL nodes) maps the
-   result back to the simulation mesh nodes.
+   added back to the 1D reference and converted to velocity.  A layered
+   back-projection (`llnltofi.interpolation.project_from_grid`) maps the
+   result back to the simulation mesh nodes layer-by-layer, mirroring the
+   forward IDW step on the same LLNL layer geometry.
 
 The output VTU adds `Vs_filtered` and `Vp_filtered`.
 
@@ -277,7 +278,7 @@ qcat <jobid>               # live output while running
 
 ## Key references
 
-- Stixrude & Lithgow-Bertelloni (2005, 2021) - SLB thermodynamic framework
+- Stixrude & Lithgow-Bertelloni (2005, 2024) - SLB thermodynamic framework
 - Cammarano et al. (2003) - Anelastic velocity corrections, Q3 profile
 - Ritsema et al. (1999, 2004, 2011) - S12RTS, S20RTS, S40RTS
 - Simmons et al. (2012, 2019) - LLNL-G3D-JPS and resolution matrix

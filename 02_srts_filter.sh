@@ -20,8 +20,10 @@ OUTPUT_VTU=/Volumes/Grey/firedrake_simulations/HT/Z22/0Ma/converted_srts_filtere
 # set -euo pipefail
 
 # module use /g/data/fp50/modules
-# module load firedrake/main-20260114
-# export PYTHONPATH=/scratch/xd2/sg8812/local/lib/python3.12/site-packages:${PYTHONPATH:-}
+# module load firedrake/main-20260417
+# Prepend a local g-drift checkout if you need the SLB_24 pyroliteCFMASNaCr
+# dataset (not yet in the installed gdrift). Edit the path or drop the entry.
+# export PYTHONPATH=/scratch/xd2/USERNAME/g-drift:/scratch/xd2/USERNAME/local/lib/python3.11/site-packages:${PYTHONPATH:-}
 
 SCRIPTS_DIR="$(dirname "$(realpath "$0")")"
 
