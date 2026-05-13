@@ -24,6 +24,7 @@ D_KM = 2891.0  # mantle depth in km
 TS = 300.0  # surface temperature (K)
 DELTA_T = 3700.0  # temperature drop across mantle (K)
 TEMP_FIELD = "FullTemperature_CG"
+D_TEMP_FIELD = "Temperature_Deviation_CG"
 Q_PROFILE = "Q6"
 N_BINS = 200  # probe depths for radial temperature average
 
@@ -91,6 +92,7 @@ def main():
     coords = np.asarray(mesh.points)
     depth_m = (RMAX - np.linalg.norm(coords, axis=1)) * D_KM * 1e3
     t_kelvin = TS + DELTA_T * np.asarray(mesh.point_data[TEMP_FIELD])
+    dt_kelvin = mesh.point_data[D_TEMP_FIELD] * DELTA_T
 
     print("Building radial temperature profile ...")
     temperature_profile = build_average_temperature_profile(depth_m, t_kelvin)
@@ -131,7 +133,8 @@ def main():
     dlnvp = dln_percent_by_layer(vp, depth_km)
 
     out_mesh = pv.UnstructuredGrid(mesh.cells, mesh.celltypes, mesh.points)
-    out_mesh.point_data["Temperature_K"] = t_kelvin
+    out_mesh.point_data["T"] = t_kelvin
+    out_mesh.point_data["dT"] = dt_kelvin
     out_mesh.point_data["Vs"] = vs
     out_mesh.point_data["Vp"] = vp
     out_mesh.point_data["dlnVs"] = dlnvs
@@ -144,6 +147,7 @@ def main():
     print(f"Points:      {len(t_kelvin):,}")
     print(f"Depth range: {depth_m.min()/1e3:.1f} - {depth_m.max()/1e3:.1f} km")
     print(f"T range:     {t_kelvin.min():.0f} - {t_kelvin.max():.0f} K")
+    print(f"dT range:    {dt_kelvin.min():.0f} - {dt_kelvin.max():.0f} K")
     print(f"Vs range:    {np.nanmin(vs):.0f} - {np.nanmax(vs):.0f} m/s")
     print(f"Vp range:    {np.nanmin(vp):.0f} - {np.nanmax(vp):.0f} m/s")
     print(f"dlnVs range: {np.nanmin(dlnvs):+.2f} - {np.nanmax(dlnvs):+.2f} %")
