@@ -125,20 +125,30 @@ def main():
     vp_llnl_tofi = apply_filter(vp_on_llnl, model)
 
     # -- 6. Layered back-projection: LLNL grid -> mesh -------------------------
-    print("\nBack-projection (layered): Vs LLNL -> mesh...")
+    print("\nBack-projection (layered): Vs LLNL reparam -> mesh...")
+    vs_reparam_mesh = project_from_grid(vs_on_llnl, sph_coords, model)
+    print("Back-projection (layered): Vp LLNL reparam -> mesh...")
+    vp_reparam_mesh = project_from_grid(vp_on_llnl, sph_coords, model)
+    print("Back-projection (layered): Vs LLNL ToFi -> mesh...")
     vs_tofi_mesh = project_from_grid(vs_llnl_tofi, sph_coords, model)
-    print("Back-projection (layered): Vp LLNL -> mesh...")
+    print("Back-projection (layered): Vp LLNL ToFi -> mesh...")
     vp_tofi_mesh = project_from_grid(vp_llnl_tofi, sph_coords, model)
 
     # -- 7. Linearised seismological perturbation -----------------------------
-    print("\nComputing dlnVs_tofi and dlnVp_tofi ...")
+    print("\nComputing dlnVs and dlnVp ...")
     depth_km = (RMAX - np.linalg.norm(coords, axis=1)) * D_KM
+    dlnvs_reparam = dln_percent_by_layer(vs_reparam_mesh, depth_km)
+    dlnvp_reparam = dln_percent_by_layer(vp_reparam_mesh, depth_km)
     dlnvs_tofi = dln_percent_by_layer(vs_tofi_mesh, depth_km)
     dlnvp_tofi = dln_percent_by_layer(vp_tofi_mesh, depth_km)
 
     # -- 8. Write output -------------------------------------------------------
+    mesh.point_data["Vs_reparam"] = vs_reparam_mesh
+    mesh.point_data["Vp_reparam"] = vp_reparam_mesh
     mesh.point_data["Vs_tofi"] = vs_tofi_mesh
     mesh.point_data["Vp_tofi"] = vp_tofi_mesh
+    mesh.point_data["dlnVs_reparam"] = dlnvs_reparam
+    mesh.point_data["dlnVp_reparam"] = dlnvp_reparam
     mesh.point_data["dlnVs_tofi"] = dlnvs_tofi
     mesh.point_data["dlnVp_tofi"] = dlnvp_tofi
 
@@ -148,10 +158,18 @@ def main():
 
     print("\n--- Summary ---")
     print(f"  Vs:   {vs.min():.0f} - {vs.max():.0f} m/s")
+    print(
+        f"  Vs_reparam: {vs_reparam_mesh.min():.0f} - {vs_reparam_mesh.max():.0f} m/s"
+    )
     print(f"  Vs_tofi: {vs_tofi_mesh.min():.0f} - {vs_tofi_mesh.max():.0f} m/s")
-    print(f"  Vp:   {vp.min():.0f} - {vp.max():.0f} m/s")
-    print(f"  Vp_tofi: {vp_tofi_mesh.min():.0f} - {vp_tofi_mesh.max():.0f} m/s")
+    print(f"  dlnVs_reparam: {dlnvs_reparam.min():+.2f} - {dlnvs_reparam.max():+.2f} %")
     print(f"  dlnVs_tofi: {dlnvs_tofi.min():+.2f} - {dlnvs_tofi.max():+.2f} %")
+    print(f"  Vp:   {vp.min():.0f} - {vp.max():.0f} m/s")
+    print(
+        f"  Vp_reparam: {vp_reparam_mesh.min():.0f} - {vp_reparam_mesh.max():.0f} m/s"
+    )
+    print(f"  Vp_tofi: {vp_tofi_mesh.min():.0f} - {vp_tofi_mesh.max():.0f} m/s")
+    print(f"  dlnVp_reparam: {dlnvp_reparam.min():+.2f} - {dlnvp_reparam.max():+.2f} %")
     print(f"  dlnVp_tofi: {dlnvp_tofi.min():+.2f} - {dlnvp_tofi.max():+.2f} %")
     print("Done.")
 

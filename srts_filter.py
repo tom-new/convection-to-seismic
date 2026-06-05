@@ -209,6 +209,7 @@ def main():
     _tock(t0)
 
     t0 = _tick("Evaluating at layer depths")
+    at_depths_reparam = DepthParameterization.evaluate_at_depths(model, unique_depths)
     at_depths_40 = DepthParameterization.evaluate_at_depths(filtered_40, unique_depths)
     at_depths_20 = DepthParameterization.evaluate_at_depths(filtered_20, unique_depths)
     at_depths_12 = DepthParameterization.evaluate_at_depths(filtered_12, unique_depths)
@@ -216,20 +217,24 @@ def main():
 
     # ── 8. Synthesize back to grid, IDW to mesh, restore mean ────────────────
     t0 = _tick("Synthesizing back to mesh")
+    grid_reparam = expander.synthesize_batch(at_depths_reparam)
     grid_40 = expander.synthesize_batch(at_depths_40)  # (n_layers, n_grid)
     grid_20 = expander.synthesize_batch(at_depths_20)
     grid_12 = expander.synthesize_batch(at_depths_12)
 
+    mesh_reparam = idw_apply(bwd_w, bwd_idx, grid_reparam) + layer_means[:, np.newaxis]
     mesh_40 = idw_apply(bwd_w, bwd_idx, grid_40) + layer_means[:, np.newaxis]
     mesh_20 = idw_apply(bwd_w, bwd_idx, grid_20) + layer_means[:, np.newaxis]
     mesh_12 = idw_apply(bwd_w, bwd_idx, grid_12) + layer_means[:, np.newaxis]
     _tock(t0)
 
     # Scatter (n_layers, n_horiz) back to flat mesh ordering
+    vs_reparam = np.empty(n_total, dtype=np.float64)
     vs_s40 = np.empty(n_total, dtype=np.float64)
     vs_s20 = np.empty(n_total, dtype=np.float64)
     vs_s12 = np.empty(n_total, dtype=np.float64)
     for i, mask in enumerate(layer_masks):
+        vs_reparam[mask] = mesh_reparam[i]
         vs_s40[mask] = mesh_40[i]
         vs_s20[mask] = mesh_20[i]
         vs_s12[mask] = mesh_12[i]
@@ -243,14 +248,17 @@ def main():
     # introduced by the backward IDW interpolation (typically ≪ anomaly
     # amplitudes).  Using the shared helper keeps NaN handling and bucketing
     # identical across the three scripts.
+    dlnvs_reparam = dln_percent_by_layer(vs_reparam, depth_km)
     dlnvs_s40 = dln_percent_by_layer(vs_s40, depth_km)
     dlnvs_s20 = dln_percent_by_layer(vs_s20, depth_km)
     dlnvs_s12 = dln_percent_by_layer(vs_s12, depth_km)
 
     # ── 9. Write output ───────────────────────────────────────────────────────
+    mesh.point_data["Vs_reparam"] = vs_reparam
     mesh.point_data["Vs_tofi"] = vs_s40
     mesh.point_data["Vs_tofi_S20RTS"] = vs_s20
     mesh.point_data["Vs_tofi_S12RTS"] = vs_s12
+    mesh.point_data["dlnVs_reparam"] = dlnvs_reparam
     mesh.point_data["dlnVs_tofi"] = dlnvs_s40
     mesh.point_data["dlnVs_tofi_S20RTS"] = dlnvs_s20
     mesh.point_data["dlnVs_tofi_S12RTS"] = dlnvs_s12
@@ -258,9 +266,11 @@ def main():
 
     print(f"\nDone. Written to {out_path}")
     print(f"  Vs:           {vs.min():.0f} – {vs.max():.0f} m/s")
+    print(f"  Vs_reparam:   {vs_reparam.min():.0f} – {vs_reparam.max():.0f} m/s")
     print(f"  Vs_S40RTS:    {vs_s40.min():.0f} – {vs_s40.max():.0f} m/s")
     print(f"  Vs_S20RTS:    {vs_s20.min():.0f} – {vs_s20.max():.0f} m/s")
     print(f"  Vs_S12RTS:    {vs_s12.min():.0f} – {vs_s12.max():.0f} m/s")
+    print(f"  dlnVs_reparam: {dlnvs_reparam.min():+.2f} – {dlnvs_reparam.max():+.2f} %")
     print(f"  dlnVs_S40RTS: {dlnvs_s40.min():+.2f} – {dlnvs_s40.max():+.2f} %")
     print(f"  dlnVs_S20RTS: {dlnvs_s20.min():+.2f} – {dlnvs_s20.max():+.2f} %")
     print(f"  dlnVs_S12RTS: {dlnvs_s12.min():+.2f} – {dlnvs_s12.max():+.2f} %")

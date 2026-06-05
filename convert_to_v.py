@@ -124,19 +124,35 @@ def main():
     temp_c = np.clip(t_kelvin, temp_min, temp_max)
 
     print("Computing Vs and Vp ...")
+    vs_unreg = slb.temperature_to_vs(temp_c, depth_c)
+    vp_unreg = slb.temperature_to_vp(temp_c, depth_c)
+    vs_lin = regular_slb.temperature_to_vs(temp_c, depth_c)
+    vp_lin = regular_slb.temperature_to_vp(temp_c, depth_c)
     vs = corrected.temperature_to_vs(temp_c, depth_c)
     vp = corrected.temperature_to_vp(temp_c, depth_c)
 
     print("Computing dlnVs and dlnVp ...")
     depth_km = depth_m / 1e3
+    dlnvs_unreg = dln_percent_by_layer(vs_unreg, depth_km)
+    dlnvp_unreg = dln_percent_by_layer(vp_unreg, depth_km)
+    dlnvs_lin = dln_percent_by_layer(vs_lin, depth_km)
+    dlnvp_lin = dln_percent_by_layer(vp_lin, depth_km)
     dlnvs = dln_percent_by_layer(vs, depth_km)
     dlnvp = dln_percent_by_layer(vp, depth_km)
 
     out_mesh = pv.UnstructuredGrid(mesh.cells, mesh.celltypes, mesh.points)
     out_mesh.point_data["T"] = t_kelvin
     out_mesh.point_data["dT"] = dt_kelvin
+    out_mesh.point_data["Vs_unreg"] = vs_unreg
+    out_mesh.point_data["Vp_unreg"] = vp_unreg
+    out_mesh.point_data["Vs_lin"] = vs_lin
+    out_mesh.point_data["Vp_lin"] = vp_lin
     out_mesh.point_data["Vs"] = vs
     out_mesh.point_data["Vp"] = vp
+    out_mesh.point_data["dlnVs_unreg"] = dlnvs_unreg
+    out_mesh.point_data["dlnVp_unreg"] = dlnvp_unreg
+    out_mesh.point_data["dlnVs_lin"] = dlnvs_lin
+    out_mesh.point_data["dlnVp_lin"] = dlnvp_lin
     out_mesh.point_data["dlnVs"] = dlnvs
     out_mesh.point_data["dlnVp"] = dlnvp
 
