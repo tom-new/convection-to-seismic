@@ -1,330 +1,317 @@
 # Seismic velocity conversion and tomographic filtering
 
-This repository contains the scripts needed to post-process mantle convection
-simulation output into synthetic seismic observables that can be directly
-compared with global tomographic models. The pipeline has five steps---four
-science steps plus one step to harmonise variable names---which are performed
-automatically on tarballs with `pipeline.sh`.
+This repository post-processes mantle convection simulation output into
+synthetic seismic observables that can be compared directly — and fairly —
+with global tomographic models. Given the PVTU output of a Firedrake/G-ADOPT
+simulation, it:
+
+1. converts temperature to absolute seismic velocities (Vs, Vp) using a
+   thermodynamic look-up table, with gradient regularisation and an anelastic
+   correction;
+2. filters the Vs field through the resolution operators of **S12RTS**,
+   **S20RTS**, and **S40RTS** (Ritsema et al. 1999, 2004, 2011);
+3. filters the Vs and Vp fields through the resolution matrix of
+   **LLNL-G3D-JPS** (Simmons et al. 2015, 2019);
+4. resamples everything onto a regular lon/lat/depth grid as NetCDF;
+5. renames and reshapes the variables into an analysis-ready convention.
+
+On this branch (`mass-convert`) the five steps are orchestrated by a single
+driver script, `pipeline.sh`, designed to batch-process many simulation
+snapshots on a local machine. Each numbered step can also be run on its own.
 
 ```
-simulation output tarball (.tar.gz of *.pvtu pieces)
+Cratons_XMa.tar.gz  (one per time slice)
         |
-        v  00_stage.sh                       (one-off untar onto /scratch)
-${NAME}_output/output/output_0.pvtu
+        v  pipeline.sh ── extracts each tarball, then per snapshot:
+XMa/output/output_0.pvtu
         |
-        v  01_convert.sh
-${NAME}_converted.vtu                        Vs, Vp, dlnVs, dlnVp at every mesh node
+        v  01_convert.sh        (convert_to_v.py, uses gdrift)
+XMa/converted.vtu                Vs, Vp + dlnVs, dlnVp at every mesh node
         |
-        +--> 02_srts_filter.sh
-        |    ${NAME}_converted_srts_filtered.vtu     S40/S20/S12 RTS filtered Vs + dlnVs
+        +─ 02_srts_filter.sh    (srts_filter.py, uses srts)
+        |  XMa/converted_srts_filtered.vtu      S12/S20/S40RTS-filtered Vs
         |
-        +--> 03_tofi_filter.sh
-        |    ${NAME}_converted_tofi_filtered.vtu     LLNL-G3D-JPS filtered Vs, Vp + dlnVs, dlnVp
+        +─ 03_llnl_filter.sh    (llnl_filter.py, uses llnltofi)
+        |  XMa/converted_llnl_filtered.vtu      LLNL-G3D-JPS-filtered Vs, Vp
         |
-        +--> 04_interpolate.sh
-             ${NAME}_converted*.nc                   all three on a regular lon/lat/depth grid
+        v  04_interpolate.sh    (ginterp)
+XMa/converted{,_srts_filtered,_llnl_filtered}.nc   regular 360x181x129 grid
+        |
+        v  05_rename.sh         (rename.py)
+<output_dir>/Cratons_XMa.nc
+<output_dir>/Cratons_XMa_S40RTS_ToFi.nc
+<output_dir>/Cratons_XMa_LLNL_ToFi.nc
 ```
 
-Every script is generic on a single run identifier `NAME` passed via
-`qsub -v NAME=...`, so the same pipeline runs against any number of
-simulations side by side without editing source.  Active run names and the
-tarballs they came from are listed in `RUNS.md`.
-
-The science behind each step is explained below, followed by practical
-instructions for running the jobs.
+The science behind each step is explained below, after the practical
+instructions.
 
 ---
 
 ## Installation
 
-The three Python packages this pipeline depends on are listed in
-`requirements.txt`.  Install them into your environment with:
+The three core packages are listed in `requirements.txt`:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-This pulls `srts` from PyPI and installs `gdrift` and `llnltofi` directly from
-their GitHub repositories:
+This installs:
 
-- **srts** - PyPI package for S-RTS tomographic filtering
-- **gdrift** - <https://github.com/g-adopt/g-drift> - thermodynamic conversion tables and anelastic corrections
-- **llnltofi** - <https://github.com/g-adopt/llnltofi> - LLNL-G3D-JPS resolution matrix filtering
+- **srts** — <https://github.com/g-adopt/srts> — S12/S20/S40RTS tomographic
+  filtering (from PyPI);
+- **gdrift** — <https://github.com/g-adopt/g-drift> — thermodynamic
+  conversion tables, gradient regularisation, and anelastic corrections
+  (from GitHub);
+- **llnltofi** — <https://github.com/g-adopt/llnltofi> — LLNL-G3D-JPS
+  resolution-matrix filtering (from GitHub);
+- **ginterp** — <https://github.com/g-adopt/g-interp> — mesh-to-grid
+  interpolation for step 4 (from GitHub):
 
-On Gadi the packages are already installed under the `xd2` project's shared
-Python path, so you do not need to re-install them - just load the module and
-run the PBS scripts as described in the usage section below.
+  ```bash
+  pip install git+https://github.com/g-adopt/g-interp.git
+  ```
+
+The scripts additionally use `pyvista` (VTK input/output), `xarray` (NetCDF
+handling), and `numpy`/`scipy`; make sure these are available in your
+environment. `pipeline.sh`
+calls GNU tar as `gtar` — on macOS install it with `brew install gnu-tar`;
+on Linux, alias or symlink `gtar` to `tar`.
+
+The model data files required by `srts`, `gdrift`, and `llnltofi` (look-up
+tables, resolution operators, grid geometries — several GB in total) are
+downloaded automatically and cached on first use, so the first run needs
+internet access.
+
+---
+
+## Running the pipeline
+
+### Batch mode (the usual way)
+
+Point `pipeline.sh` at a directory of `Cratons_XMa.tar.gz` tarballs (one per
+reconstruction age `X`, in Ma) and at a destination for the final NetCDF
+files:
+
+```bash
+./pipeline.sh <base_dir> <output_dir> [scripts_dir] [--min-age N] [--max-age N]
+```
+
+- `base_dir` — directory containing the `Cratons_XMa.tar.gz` files; an
+  `XMa/` working subdirectory is created next to each tarball;
+- `output_dir` — destination for the final renamed `.nc` files;
+- `scripts_dir` — location of the numbered scripts and Python helpers
+  (defaults to the directory containing `pipeline.sh`);
+- `--min-age` / `--max-age` — optionally restrict processing to tarballs
+  within an age range (inclusive, in Ma).
+
+Example:
+
+```bash
+./pipeline.sh /Volumes/Grey/firedrake_simulations/Cratons \
+              ~/OneDrive/phd/firedrake-models/Cratons \
+              --min-age 10 --max-age 50
+```
+
+For each tarball the driver extracts the archive, runs steps 1–5, and
+reports a processed/skipped tally at the end. All intermediate artefacts
+(`.vtu` and unrenamed `.nc`) are kept in the per-age working directory; only
+the renamed NetCDF files land in `output_dir`.
+
+### Running a single snapshot
+
+Each step is a standalone script taking the working directory as its first
+argument, so a single snapshot can be (re)processed step by step:
+
+```bash
+bash 01_convert.sh      <work_dir>
+bash 02_srts_filter.sh  <work_dir>
+bash 03_llnl_filter.sh  <work_dir>
+bash 04_interpolate.sh  <work_dir>
+bash 05_rename.sh       <work_dir> <output_dir>
+```
+
+`<work_dir>` must contain the simulation output at
+`output/output_0.pvtu`. Steps 2 and 3 are independent of each other and can
+run in either order (or concurrently); both require step 1, and step 4
+requires all three VTU files.
 
 ---
 
 ## The physics, step by step
 
-### 1. From temperature to seismic velocity
+### 1. From temperature to seismic velocity (`convert_to_v.py`)
 
-The simulation evolves a non-dimensional temperature field through the mantle.
-To compare it with seismology we need to predict what seismic waves would
-measure in that mantle, that is, we need Vs (shear-wave velocity) and Vp
-(compressional-wave velocity) as a function of temperature and pressure.
+The simulation evolves a non-dimensional temperature field. To compare it
+with seismology we must predict what seismic waves would measure in that
+mantle: Vs and Vp as a function of temperature and depth. The script
+dimensionalises coordinates and temperature (surface temperature 300 K,
+temperature drop 3700 K, mantle depth 2891 km, non-dimensional outer radius
+2.208 — constants at the top of the file), reading the
+`FullTemperature_CG` and `Temperature_Deviation_CG` fields from the PVTU.
 
-**Thermodynamic model.** We use the SLB_24 dataset (Stixrude &
-Lithgow-Bertelloni 2024) with a pyrolite CFMASNaCr (CaO-FeO-MgO-Al2O3-SiO2-
-Na2O-Cr2O3) bulk composition.  This is a pre-computed thermodynamic look-up table:
-for each (temperature, depth) pair it gives Vs, Vp, and density, derived from
-mineral-physics equations of state for the stable phase assemblage at those
-conditions.  The table covers the full mantle from 0 to 2891 km. These are
-coefficients coming from the above study and then thrown into a numerical code
-that optimises different parameters for mineral assemblage to find what the most
-stable mineralogy is. Then using theoretical expectations we compute all the
-thermodynamic parameters.
+**Thermodynamic model.** Conversion uses the SLB_24 dataset (Stixrude &
+Lithgow-Bertelloni 2024) with a pyrolite CFMASNaCr
+(CaO–FeO–MgO–Al₂O₃–SiO₂–Na₂O–Cr₂O₃) bulk composition, accessed through
+`gdrift.ThermodynamicModel`. This is a pre-computed look-up table: for each
+(temperature, depth) pair it gives Vs, Vp, and density for the stable
+mineral assemblage at those conditions, covering the full mantle from 0 to
+2891 km.
 
-**Why regularisation?**  Phase transitions (olivine -> wadsleyite -> ringwoodite
--> post-spinel, etc.) produce sharp velocity jumps in the raw table as a
-function of temperature at a fixed depth.  In a convecting mantle the average
-temperature at any depth is not zero; it follows a geotherm, so a naive
-conversion produces artefacts wherever the laterally-averaged temperature
-crosses a phase boundary.  `regularise_thermodynamic_table` anchors the
-conversion to the actual spherically-averaged temperature profile extracted from
-the simulation mesh.  Concretely, it computes $\bar{T}(z)$ from the simulation,
-evaluates the reference velocity $V_s^{\rm ref}(\bar{T}(z), z)$, and then maps
-temperature anomalies $\delta T$ to velocity anomalies $\delta V_s$ linearly
-around that reference.  The result is smooth and free of phase-transition
-artefacts.
+**Gradient regularisation.** Phase transitions (olivine → wadsleyite →
+ringwoodite → post-spinel, etc.) produce sharp velocity jumps in the raw
+table as a function of temperature at fixed depth, so a naive conversion
+produces artefacts wherever the temperature field crosses a phase boundary.
+`gdrift.regularise_thermodynamic_table` anchors the conversion to the
+spherically averaged temperature profile T̄(z) of the simulation itself —
+computed here by averaging the mesh temperatures in 200 evenly spaced depth
+bins — and maps temperature anomalies to velocity anomalies linearly about
+the reference velocity V(T̄(z), z), with the velocity–temperature gradient
+clipped to a physically plausible range. The result is smooth and free of
+phase-transition artefacts.
 
-**Anelastic correction.** The SLB_24 table gives *elastic* velocities, i.e.
-what you would measure at infinite frequency.  Real seismic waves travel at
-roughly 1 Hz, and at the high temperatures in the deep mantle this matters:
-anelastic attenuation causes velocity dispersion, meaning the actual seismic
-velocity is measurably lower than the elastic one.  The correction follows
-Cammarano et al. (2003) and uses the Q3 quality-factor profile, which is
-calibrated against observed 1-D seismological reference models.  The
-corrected velocity is
+**Anelastic correction.** The SLB_24 table gives *elastic* (infinite-
+frequency) velocities, but real seismic waves travel at finite frequency,
+and at high mantle temperatures anelastic attenuation causes dispersion:
+the measured velocity is lower than the elastic one. The correction follows
+Cammarano et al. (2003), implemented in `gdrift.CammaranoAnelasticityModel`
+with the **Q6** quality-factor profile, and is largest (several per cent) in
+the hot deep mantle where Q is low.
 
-$$
-V_s^{\rm anel}(T, z) \approx V_s^{\rm el}(T, z)
-\left[1 - \frac{\cot(\alpha\pi/2)}{2 Q(z)}\right]
-$$
+**Outputs.** The script writes `converted.vtu` containing three velocity
+variants at every mesh node, so that the effect of each modelling choice can
+be isolated downstream:
 
-where $\alpha \approx 0.26$ is the frequency exponent and $Q(z)$ is the depth-
-dependent quality factor.  The correction is largest (several percent) in the
-deep lower mantle where temperatures are high and Q is low.
+| Field(s)                   | Meaning                                            |
+|----------------------------|----------------------------------------------------|
+| `T`, `dT`                  | temperature (K) and temperature deviation (K)      |
+| `Vs_unreg`, `Vp_unreg`     | raw table conversion (no regularisation)           |
+| `Vs_lin`, `Vp_lin`         | gradient-regularised (linearised), elastic         |
+| `Vs`, `Vp`                 | gradient-regularised **and** anelastically corrected |
+| `dlnVs_*`, `dlnVp_*`       | relative anomalies (%) of each variant             |
 
-**Input / output.**  The script reads one PVTU file (the parallel VTK format
-written by Firedrake/G-ADOPT), dimensionalises coordinates and temperature using
-the constants at the top of `convert_to_vs.py`, and writes a single VTU with
-fields `Temperature_K`, `Vs`, `Vp`, `dlnVs`, and `dlnVp` at every mesh node.
+The relative anomalies are computed by `_layer_mean.py` as the deviation
+from the unweighted nodal mean within each depth layer of the extruded mesh.
+Because the horizontal mesh is quasi-uniform (near-equal area per node), the
+unweighted layer mean is a faithful approximation to the true spherical
+mean, so no cos(latitude) weighting is needed at this stage.
 
-The `dlnVs` and `dlnVp` fields are the linearised seismological perturbations
-relative to the depth-mean velocity,
+### 2. S-RTS tomographic filtering (`srts_filter.py`)
 
-$$
-\delta\ln V \equiv \frac{V - \langle V\rangle(z)}{\langle V\rangle(z)} \times 100\%,
-$$
+A direct comparison between the synthetic Vs field and a tomographic model
+is unfair: the tomographic model sees a blurred and damped version of the
+Earth, determined by the source–receiver geometry and the inversion
+regularisation. Tomographic filtering imposes the same blurring on the
+synthetic field so that like is compared with like.
 
-where $\langle V\rangle(z)$ is the spherical-shell average at the depth of each
-node.  Mesh nodes lie on discrete radial layers, and on the quasi-uniform
-icosahedral horizontal mesh each node represents nearly equal area, so the
-unweighted nodal mean within a layer is already a faithful area-weighted
-spherical mean — no $\cos\phi$ weighting is needed at this stage.  The fields
-are carried through steps 2–4 unchanged, so the regularly gridded NetCDF
-output of step 4 inherits the same $\delta\ln V$ values without any additional
-averaging logic.
+The S-RTS family parameterises Vs anomalies as spherical harmonics
+horizontally and 21 vertical splines. Using the `srts` package, the script:
 
----
+1. interpolates the mesh onto a regular 181 × 360 lat/lon grid at each
+   depth layer by inverse-distance weighting (k = 4 neighbours, power 2);
+2. expands each layer in spherical harmonics to degree 40
+   (`SphericalHarmonicExpansion`);
+3. projects the coefficient profiles onto the 21-knot spline depth basis
+   (`DepthParameterization`) — a change of vertical basis, not yet a
+   filtering step;
+4. applies the resolution operator of each of S40RTS, S20RTS, and S12RTS,
+   which truncates horizontal structure beyond each model's resolution
+   (ℓmax = 40, 20, 12) and damps vertical structure the inversion cannot
+   constrain;
+5. synthesises the filtered coefficients back onto the regular grid and
+   interpolates back to the mesh nodes layer by layer, restoring the layer
+   mean so absolute velocities are preserved.
 
-### 2. S-RTS tomographic filtering (srts_filter.py)
+Both IDW weight matrices are precomputed once from the shared horizontal
+structure of the extruded mesh, and the spherical harmonic operators are
+reused across layers, so the whole filter runs in minutes.
 
-A direct comparison between the raw synthetic Vs field and a global tomographic
-model is "unfair" because the tomographic model does not see the true Earth. It
-sees a blurred and damped version of it, determined by the geographic
-distribution of seismic sources and receivers and by the choice of inversion
-regularisation.  Tomographic filtering replicates that effect on the synthetic
-field so that like is compared with like.
+**Outputs** (added to `converted_srts_filtered.vtu`): `Vs_reparam` — Vs
+after the round trip through the spectral–spline basis but *without*
+filtering (the correct unfiltered reference for filtered-vs-unfiltered
+comparisons); `Vs_tofi` — S40RTS-filtered; `Vs_tofi_S20RTS` and
+`Vs_tofi_S12RTS`; and the corresponding `dlnVs_*` percentage anomalies.
 
-The SRTS family - S12RTS (Ritsema et al. 1999), S20RTS (Ritsema et al. 2004),
-S40RTS (Ritsema et al. 2011) - parameterises Vs anomalies as a sum of spherical
-harmonics horizontally and 21 splines vertically.  The filtering procedure is:
+### 3. LLNL-G3D-JPS tomographic filtering (`llnl_filter.py`)
 
-1. **Mesh -> regular grid (IDW).** The unstructured simulation mesh is
-   interpolated onto a 181 x 360 (latitude x longitude) regular grid at each
-   depth layer using inverse-distance weighting.
+LLNL-G3D-JPS (Simmons et al. 2015, 2019) is a joint P- and S-wave model on
+an irregular grid whose point density follows ray-path coverage. Its
+resolution matrix **R** is the explicit least-squares operator
 
-2. **Spherical harmonic expansion.** The velocity anomaly on the regular grid
-   is expanded in spherical harmonics up to degree $\ell_{\max}=40$.  This
-   gives a set of spectral coefficients $c_{\ell m}(z)$ at each depth.
+    R = (GᵀC_d⁻¹G + C_m⁻¹)⁻¹ GᵀC_d⁻¹G
 
-3. **Depth reparameterisation.** The continuous depth profile of coefficients
-   is projected onto the 21 B-spline basis functions used by each S-RTS model.
-   This is a change of vertical basis, not a filtering step.
+where G is the sensitivity matrix, C_d the data covariance, and C_m the
+model covariance (regularisation). Applying **R** to a synthetic slowness
+anomaly gives what the LLNL inversion would have recovered had the Earth
+looked like the simulation. Using the `llnltofi` package, the script:
 
-4. **Resolution filter.** Each S-RTS model provides its own resolution operator
-   in spectral-spline space.  It encodes both the maximum resolved wavelength
-   (given by $\ell_{\max}$: 12, 20, or 40) and the vertical smoothing imposed
-   by the inversion.  Applying the filter truncates horizontal structure beyond
-   the model's resolution and damps vertical structure that the inversion could
-   not constrain.
+1. projects Vs and Vp from the mesh onto the ~10⁶-point LLNL grid with a
+   layer-aware IDW (`project_onto_grid`);
+2. converts to slowness and forms the anomaly δs = s − s₁D relative to the
+   layer-mean 1-D reference;
+3. applies the resolution matrix as a single sparse matrix–vector product;
+4. converts back to velocity and back-projects to the mesh nodes
+   (`project_from_grid`), mirroring the forward interpolation on the same
+   layer geometry.
 
-5. **Synthesis + grid -> mesh (layered).** The filtered coefficients are
-   synthesised back to the regular grid and then interpolated back to the mesh
-   nodes layer-by-layer.  The depth-layer mean is restored before the final
-   output so that absolute velocities (not just anomalies) are preserved.
+No separate amplitude treatment is needed for Vs versus Vp: **R** acts on
+slowness anomalies irrespective of wave type.
 
-The output VTU adds three filtered fields alongside the original Vs:
-`Vs_S40RTS`, `Vs_S20RTS`, and `Vs_S12RTS`, plus their linearised
-perturbations `dlnVs_S40RTS`, `dlnVs_S20RTS`, and `dlnVs_S12RTS`.  Each
-`dlnVs_*` is referenced to the depth-mean of its own filtered field,
-following the standard tomographic-anomaly convention.
+**Outputs** (added to `converted_llnl_filtered.vtu`): `Vs_reparam`,
+`Vp_reparam` — the unfiltered round trip through the LLNL grid (the correct
+unfiltered reference for this filter); `Vs_tofi`, `Vp_tofi` — filtered; and
+the corresponding `dlnVs_*`/`dlnVp_*` percentage anomalies.
 
----
+### 4. Interpolation to a regular grid (`04_interpolate.sh`)
 
-### 3. LLNL-G3D-JPS tomographic filtering (tofi_filter.py)
+The VTU files live on the unstructured finite-element mesh, which is
+convenient for computation but awkward for analysis. Step 4 uses
+[`ginterp`](https://github.com/g-adopt/g-interp) to resample all three onto
+a regular 360 × 181 × 129
+(longitude × latitude × depth) spherical grid spanning non-dimensional
+radii 1.208–2.208 (CMB to surface), writing one NetCDF file per VTU.
 
-LLNL-G3D-JPS (Simmons et al. 2012, 2019) is a joint P- and S-wave tomographic
-model parameterised on an irregular grid with a geographic point distribution
-that follows ray-path density.  Its resolution matrix $\mathbf{R}$ is the
-explicit least-squares solution to
+### 5. Renaming for analysis (`05_rename.sh`, `rename.py`)
 
-$$
-\mathbf{R} = (\mathbf{G}^T \mathbf{C}_d^{-1} \mathbf{G}
-+ \mathbf{C}_m^{-1})^{-1} \mathbf{G}^T \mathbf{C}_d^{-1} \mathbf{G}
-$$
+The final step subsets and renames the NetCDF variables into the convention
+used by the downstream plotting and analysis workflows, and tidies the
+coordinates: dimensions are reordered to (r, lat, lon), longitudes are
+wrapped to [−180°, 180°) and sorted, the radial coordinate is
+dimensionalised to metres, and a `depth` coordinate (km) is added. The
+variable mapping is:
 
-where $\mathbf{G}$ is the ray-path sensitivity matrix, $\mathbf{C}_d$ the data
-covariance, and $\mathbf{C}_m$ the model covariance (regularisation).  Applying
-$\mathbf{R}$ to a synthetic slowness vector gives what the LLNL inversion would
-have recovered had the Earth looked like the simulation.
+| Input variable  | Output variable          | Meaning                                  |
+|-----------------|--------------------------|------------------------------------------|
+| `T`, `dT`       | `T`, `dT`                | temperature, temperature deviation       |
+| `dlnVs_lin`     | `dlnVs_lin_percent`      | regularised, elastic                     |
+| `dlnVs`         | `dlnVs_linan_percent`    | regularised + anelastic                  |
+| `dlnVs_reparam` | `dlnVs_reparam_percent`  | unfiltered reference (reparameterised)   |
+| `dlnVs_tofi`    | `dlnVs_tofi_percent`     | tomographically filtered                 |
 
-The filtering steps are:
-
-1. **Mesh -> LLNL grid (IDW).** A layer-by-layer IDW maps the simulation Vs and
-   Vp onto the geographic grid points of the LLNL model.  The LLNL grid
-   distinguishes upper-mantle/transition-zone layers from lower-mantle layers,
-   each with different horizontal resolutions.
-
-2. **Convert to slowness anomaly.** The depth-dependent 1D reference is
-   estimated from the layer-mean slowness on the LLNL grid, and the anomaly
-   $\delta s = s - s_{1\rm D}$ is formed.
-
-3. **Apply resolution matrix.** $\delta s_{\rm filtered} = \mathbf{R}\,\delta s$.
-   No separate amplitude scaling is applied for Vs vs Vp because $\mathbf{R}$
-   acts on slowness anomalies irrespective of wave type.
-
-4. **Recover velocity + back-projection.** The filtered slowness anomaly is
-   added back to the 1D reference and converted to velocity.  A layered
-   back-projection (`llnltofi.interpolation.project_from_grid`) maps the
-   result back to the simulation mesh nodes layer-by-layer, mirroring the
-   forward IDW step on the same LLNL layer geometry.
-
-The output VTU adds `Vs_filtered` and `Vp_filtered`, plus the linearised
-perturbations `dlnVs_filtered` and `dlnVp_filtered`, each referenced to the
-depth-mean of the filtered field itself.
+(and likewise for `dlnVp_*` where present). Three files are written per
+snapshot, named after the working directory: `<TAG>.nc` (conversion only),
+`<TAG>_S40RTS_ToFi.nc`, and `<TAG>_LLNL_ToFi.nc`. These are the primary
+data products for making maps, radial profiles, and power spectra.
 
 ---
 
-### 4. Interpolation to a regular grid (04_interpolate.sh)
+## Legacy HPC scripts
 
-The filtered VTU files live on the unstructured finite-element mesh, which is
-convenient for computation but awkward for analysis and plotting.  Step 4 uses
-`ginterp` to resample all three outputs onto a 360 x 181 x 129
-(longitude x latitude x depth) regular grid and writes them as NetCDF files.
-These are what you load for making maps, radial profiles, and power spectra.
+Two scripts from the Gadi (NCI) workflow that preceded this branch are kept
+for staging and archiving data on the HPC system; they are not called by
+`pipeline.sh`:
 
----
-
-## Running the pipeline on Gadi
-
-### Prerequisites
-
-The required Python packages are available through the Firedrake module on
-Gadi.  No additional installation is needed beyond what is already set up in
-the `xd2` project — the PBS scripts `module load firedrake/...` and prepend
-the project-shared `gdrift`, `srts`, `llnltofi`, and `ginterp` paths to
-`PYTHONPATH` for you.
-
-### Setup
-
-Clone this repository somewhere under your scratch space:
-
-```bash
-cd /scratch/xd2/USERNAME
-git clone <repo-url> kat-conversion
-cd kat-conversion
-```
-
-Replace `USERNAME` with your Gadi username throughout.
-
-### How the scripts are parametrised
-
-Every step is generic on a run identifier `NAME` (and, for staging, an
-`INPUT_TAR` path), passed via `qsub -v`.  Files for a given run all share
-the prefix `${NAME}_`, so multiple simulations coexist in the same working
-directory without collision.  The naming convention is:
-
-| Step              | Reads                                                    | Writes                                      |
-|-------------------|----------------------------------------------------------|---------------------------------------------|
-| `00_stage.sh`     | `INPUT_TAR` (tarball of pvtu pieces)                     | `${NAME}_output/output/output_0.pvtu`       |
-| `01_convert.sh`   | `${NAME}_output/output/output_0.pvtu`                    | `${NAME}_converted.vtu`                     |
-| `02_srts_filter.sh` | `${NAME}_converted.vtu`                                | `${NAME}_converted_srts_filtered.vtu`       |
-| `03_tofi_filter.sh` | `${NAME}_converted.vtu`                                | `${NAME}_converted_tofi_filtered.vtu`       |
-| `04_interpolate.sh` | the three VTUs above                                   | `${NAME}_converted{,_srts,_tofi}_filtered.nc` |
-
-`01_convert.sh` also accepts an `INPUT_PVTU=...` override if you want to
-point at a pvtu that wasn't placed by `00_stage.sh`.
-
-### End-to-end submission
-
-Pick a `NAME` and the source tarball, then submit the five jobs with PBS
-dependencies so they queue immediately and start in order as soon as each
-predecessor finishes.  `02_srts_filter.sh` and `03_tofi_filter.sh` both
-depend on `01_convert.sh` and run in parallel.
-
-```bash
-NAME=C39_3e22_MuT
-TAR=/g/data/xd2/sg8812/kat-conversion-archive/0Ma_C39_3e22_MuT_Output.tar.gz
-
-STAGE=$(qsub  -v NAME=$NAME,INPUT_TAR=$TAR                                 00_stage.sh)
-CONV=$(qsub   -v NAME=$NAME -W depend=afterok:$STAGE                       01_convert.sh)
-SRTS=$(qsub   -v NAME=$NAME -W depend=afterok:$CONV                        02_srts_filter.sh)
-TOFI=$(qsub   -v NAME=$NAME -W depend=afterok:$CONV                        03_tofi_filter.sh)
-INTERP=$(qsub -v NAME=$NAME -W depend=afterok:$SRTS:$TOFI                  04_interpolate.sh)
-```
-
-If the input has already been staged (i.e. `${NAME}_output/` exists), skip
-the `00_stage.sh` line and drop `-W depend=afterok:$STAGE` from the
-`01_convert.sh` line.
-
-### Resource budgets
-
-| Step | Queue   | ncpus | mem    | walltime |
-|------|---------|------:|-------:|---------:|
-| 00   | copyq   | 1     | 8 GB   | 4 h      |
-| 01   | normal  | 1     | 128 GB | 4 h      |
-| 02   | normal  | 1     | 64 GB  | 2 h      |
-| 03   | normal  | 1     | 64 GB  | 2 h      |
-| 04   | normal  | 1     | 128 GB | 4 h      |
-
-### Checking job status
-
-```bash
-qstat -u USERNAME          # all your jobs
-qcat -o <jobid>            # stdout of a completed job
-qstat -fx <jobid>          # full record incl. exit status
-```
-
-### Tracking and archiving runs
-
-`RUNS.md` records each `NAME` together with its source tarball and any
-relevant notes (viscosity, rheology, model series).  Add a row whenever you
-launch a new run.  Once `04_interpolate.sh` for a given `NAME` finishes,
-copy the six `${NAME}_converted*` files (three `.vtu` plus three `.nc`)
-into `/g/data/xd2/sg8812/kat-conversion-archive/` as
-`kat_${NAME}_artefacts.tar.gz` from a `copyq` job so `/scratch` can be
-reclaimed.
+- `00_stage.sh` — PBS `copyq` job that extracts a simulation tarball into
+  the scratch working directory and sanity-checks the expected PVTU;
+- `archive.sh` — PBS `copyq` job that tars a run's six pipeline artefacts
+  into the project archive on `/g/data`.
 
 ---
 
 ## Key references
 
-- Stixrude & Lithgow-Bertelloni (2005, 2024) - SLB thermodynamic framework
-- Cammarano et al. (2003) - Anelastic velocity corrections, Q3 profile
-- Ritsema et al. (1999, 2004, 2011) - S12RTS, S20RTS, S40RTS
-- Simmons et al. (2012, 2019) - LLNL-G3D-JPS and resolution matrix
+- Stixrude & Lithgow-Bertelloni (2024) — SLB_24 thermodynamic dataset
+- Cammarano et al. (2003) — anelastic velocity corrections and Q profiles
+- Ritsema et al. (1999, 2004, 2011) — S12RTS, S20RTS, S40RTS
+- Simmons et al. (2015, 2019) — LLNL-G3D-JPS and its resolution matrix
+- Ritsema et al. (2007) — tomographic filtering of geodynamic models

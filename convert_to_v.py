@@ -2,7 +2,7 @@
 Convert non-dimensional mantle convection output (PVTU) to seismic velocities.
 
 Loads the full dataset at once, dimensionalises temperature, then computes Vs
-and Vp using the SLB_24 pyroliteCFMASNaCr thermodynamic model with Cammarano Q3
+and Vp using the SLB_24 pyroliteCFMASNaCr thermodynamic model with Cammarano Q6
 anelastic correction. The thermodynamic table is regularised against the
 spherically-averaged temperature profile extracted from the mesh itself, which
 removes spurious phase-transition jumps in the Vs(T) relationship. Output
