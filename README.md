@@ -2,8 +2,9 @@
 
 This repository contains the scripts needed to post-process mantle convection
 simulation output into synthetic seismic observables that can be directly
-compared with global tomographic models.  The pipeline has five steps (a
-staging step plus four science steps), each submitted as a PBS job on Gadi.
+compared with global tomographic models. The pipeline has five steps---four
+science steps plus one step to harmonise variable names---which are performed
+automatically on tarballs with `pipeline.sh`.
 
 ```
 simulation output tarball (.tar.gz of *.pvtu pieces)

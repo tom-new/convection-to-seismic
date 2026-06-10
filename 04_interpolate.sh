@@ -1,29 +1,8 @@
-#!/bin/bash
-#PBS -N interpolate
-#PBS -P xd2
-#PBS -q normal
-#PBS -l walltime=04:00:00
-#PBS -l ncpus=1
-#PBS -l mem=128GB
-#PBS -l storage=scratch/xd2+gdata/fp50
-#PBS -l wd
-#PBS -j oe
-
-# Step 4: interpolate VTU outputs onto a regular lon/lat/depth grid (NetCDF).
-#
-# Pass via qsub -v:
-#   NAME  run identifier (required)
-
+#!/usr/bin/env bash
 set -euo pipefail
 
-: "${NAME:?must pass -v NAME=<run-id>}"
-
-WORK=/scratch/xd2/sg8812/kat-conversion
-PREFIX="${NAME}_converted"
-
-module use /g/data/fp50/modules
-module load firedrake/main-20260417
-export PYTHONPATH=/scratch/xd2/sg8812/g-drift:/scratch/xd2/sg8812/local/lib/python3.11/site-packages:/scratch/xd2/sg8812/g-interp:${PYTHONPATH:-}
+WORK="${1:?Usage: $0 <work_dir>}"
+PREFIX="converted"
 
 interp() {
     local vtu="$1"
