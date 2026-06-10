@@ -1,7 +1,7 @@
 """
 srts_filter.py — Apply S12RTS, S20RTS, S40RTS tomographic filters to a Vs field.
 
-Input:  single .vtu file (output of convert_to_vs.py), with Vs as point_data.
+Input:  single .vtu file (output of convert_to_v.py), with Vs as point_data.
         Coordinates are non-dimensional Cartesian (RMAX=2.208, D_KM=2891 km).
 Output: <stem>_srts_filtered.vtu in the same directory, containing the original
         Vs plus Vs_S40RTS, Vs_S20RTS, Vs_S12RTS.

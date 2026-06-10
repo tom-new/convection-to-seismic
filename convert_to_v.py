@@ -9,7 +9,7 @@ removes spurious phase-transition jumps in the Vs(T) relationship. Output
 contains only Temperature_K, Vs, and Vp.
 
 Usage:
-    python convert_to_vs.py <input.pvtu> <output.vtu>
+    python convert_to_v.py <input.pvtu> <output.vtu>
 """
 
 import sys

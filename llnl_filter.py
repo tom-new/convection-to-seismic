@@ -1,11 +1,11 @@
 """
-tofi_filter.py — Tomographic filtering of Vs and Vp using the
+llnl_filter.py — Tomographic filtering of Vs and Vp using the
 LLNL-G3D-JPS resolution matrix with layered interpolation.
 
 Usage:
-    python tofi_filter.py <input.vtu> <output.vtu>
+    python llnl_filter.py <input.vtu> <output.vtu>
 
-The input is the output of convert_to_vs.py: a VTU (or PVTU) with Vs and Vp
+The input is the output of convert_to_v.py: a VTU (or PVTU) with Vs and Vp
 as point-data fields (m/s) and non-dimensional Cartesian coordinates
 (RMAX=2.208, D_KM=2891).  The script adds Vs_filtered and Vp_filtered
 fields and writes a new VTU.
